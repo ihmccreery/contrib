@@ -12,13 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM gcr.io/google-containers/debian-base-amd64:0.1
+FROM lyft/envoy:latest
 LABEL maintainer "ihmccreery@google.com"
 
 ARG DEBIAN_FRONTEND=noninteractive
-RUN apt-get update && apt-get install -y \
-  apt-utils && clean-install iptables nginx
+RUN apt-get update && apt-get install -y iptables
 
+# Give envoy its config file.
+COPY envoy.json /etc/envoy.json
 # Place our wrapper script into the image.
 COPY start-proxy.sh /
 
