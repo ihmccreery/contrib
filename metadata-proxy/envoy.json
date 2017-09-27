@@ -1,0 +1,74 @@
+{
+  "listeners": [
+    {
+      "address": "tcp://127.0.0.1:988",
+      "filters": [
+        {
+          "type": "read",
+          "name": "http_connection_manager",
+          "config": {
+            "codec_type": "auto",
+            "stat_prefix": "compute-metadata",
+            "route_config": {
+              "virtual_hosts": [
+                {
+                  "name": "backend",
+                  "domains": ["*"],
+                  "routes": [
+                    {
+                      "prefix": "/0.1/",
+                      "cluster": "compute-metadata"
+                    },
+                    {
+                      "prefix": "/computeMetadata/v1beta1/",
+                      "cluster": "compute-metadata"
+                    },
+                    {
+                      "prefix": "/computeMetadata/v1/",
+                      "cluster": "compute-metadata"
+                    }
+                  ]
+                }
+              ]
+            },
+            "filters": [
+              {
+                "type": "decoder",
+                "name": "router",
+                "config": {}
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "admin": {
+    "access_log_path": "/dev/stdout",
+    "address": "tcp://0.0.0.0:8001"
+  },
+  "cluster_manager": {
+    "clusters": [
+      {
+        "name": "compute-metadata",
+        "connect_timeout_ms": 250,
+        "type": "static",
+        "lb_type": "round_robin",
+        "hosts": [
+          {
+            "url": "tcp://169.254.169.254:80"
+          }
+        ],
+	"health_check": {
+	  "type": "http",
+	  "timeout_ms": 1000,
+	  "interval_ms": 10000,
+	  "unhealthy_threshold": 3,
+	  "healthy_threshold": 3,
+	  "path": "/",
+	  "interval_jitter_ms": 10
+	}
+      }
+    ]
+  }
+}
