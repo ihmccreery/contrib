@@ -27,22 +27,24 @@ import (
 
 var (
 	successEndpoints = []string{
-		// Root, no trailing slash.
+		// Discovery
 		"http://169.254.169.254",
 		"http://metadata.google.internal",
 		"http://169.254.169.254/",
 		"http://metadata.google.internal/",
-		// The GCE metadata server serves 301s for directory locations
-		// without trailing slashes.
+		"http://metadata.google.internal/0.1",
+		"http://metadata.google.internal/0.1/",
 		"http://metadata.google.internal/0.1/meta-data",
-		"http://metadata.google.internal/computeMetadata/v1",
+		"http://metadata.google.internal/computeMetadata",
 		"http://metadata.google.internal/computeMetadata/v1beta1",
+		"http://metadata.google.internal/computeMetadata/v1",
 		// Allowed API versions.
 		"http://metadata.google.internal/0.1/meta-data/",
-		"http://metadata.google.internal/computeMetadata/v1/",
 		"http://metadata.google.internal/computeMetadata/v1beta1/",
+		"http://metadata.google.internal/computeMetadata/v1/",
 		// Service account token endpoints.
 		"http://metadata.google.internal/0.1/meta-data/service-accounts/default/acquire",
+		"http://metadata.google.internal/computeMetadata/v1beta1/instance/service-accounts/default/token",
 		"http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token",
 		// Params that contain 'recursive' as substring.
 		"http://metadata.google.internal/computeMetadata/v1/instance/?nonrecursive=true",
@@ -56,14 +58,17 @@ var (
 	failureEndpoints = []string{
 		// Other API versions.
 		"http://metadata.google.internal/0.2/",
-		"http://metadata.google.internal/computeMetadata/v2",
+		"http://metadata.google.internal/computeMetadata/v2/",
 		// kube-env.
+		"http://metadata.google.internal/computeMetadata/0.1/attributes/kube-env",
+		"http://metadata.google.internal/computeMetadata/v1beta1/instance/attributes/kube-env",
 		"http://metadata.google.internal/computeMetadata/v1/instance/attributes/kube-env",
 		// VM identity.
+		"http://metadata.google.internal/computeMetadata/0.1/service-accounts/default/identity",
+		"http://metadata.google.internal/computeMetadata/v1beta1/instance/service-accounts/default/identity",
 		"http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity",
-		// Recursive, case-insensitive.
+		// Recursive.
 		"http://metadata.google.internal/computeMetadata/v1/instance/?recursive=true",
-		"http://metadata.google.internal/computeMetadata/v1/instance/?RECURSIVE=ON",
 		"http://metadata.google.internal/computeMetadata/v1/instance/?something=other&recursive=true",
 		"http://metadata.google.internal/computeMetadata/v1/instance/?recursive=true&something=other",
 	}

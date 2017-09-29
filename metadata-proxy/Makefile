@@ -1,4 +1,4 @@
-# Copyright 2017 The Kubernetes Authors.
+# Copyright 2017 Google Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,17 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-.PHONY:	build push
+all: build
 
-# TAG is the version to build and push to.
-PREFIX = gcr.io/google-containers
-TAG = 0.1.3
+ENVVAR = GOOS=linux GOARCH=amd64 CGO_ENABLED=0
+REGISTRY = gcr.io/ihm-gke
+TAG = 0.1.4
 
-build:
-	# We explicitly add "--pull" flag to always fetch the latest version
-	# of the base image. This is necessary to avoid using cached local
-	# versions of image e.g. when updating insecure base images.
-	docker build --pull -t ${PREFIX}/metadata-proxy:$(TAG) .
+deps:
+	go get github.com/tools/godep
 
-push: build
-	gcloud docker -- push ${PREFIX}/metadata-proxy:$(TAG)
+build: clean deps
+	$(ENVVAR) godep go test ./...
+	$(ENVVAR) godep go build -o metadata_proxy
+
+container: build
+	docker build --pull --no-cache -t ${REGISTRY}/metadata-proxy:$(TAG) .
+
+push: container
+	gcloud docker -- push ${REGISTRY}/metadata-proxy:$(TAG)
+
+clean:
+	rm -f metadata_proxy
