@@ -76,36 +76,50 @@ var (
 
 func main() {
 	success := 0
+	h := map[string][]string{
+		"Metadata-Flavor": {"Google"},
+	}
 	for _, e := range successEndpoints {
-		if err := checkURL(e, 200, ""); err != nil {
+		if err := checkURL(e, h, 200, ""); err != nil {
 			log.Printf("Wrong response for %v: %v", e, err)
 			success = 1
 		}
 	}
 	for _, e := range noKubeEnvEndpoints {
-		if err := checkURL(e, 200, "kube-env"); err != nil {
+		if err := checkURL(e, h, 200, "kube-env"); err != nil {
 			log.Printf("Wrong response for %v: %v", e, err)
 			success = 1
 		}
 	}
 	for _, e := range failureEndpoints {
-		if err := checkURL(e, 403, ""); err != nil {
+		if err := checkURL(e, h, 403, ""); err != nil {
 			log.Printf("Wrong response for %v: %v", e, err)
+			success = 1
+		}
+	}
+
+	xForwardedForHeader := map[string][]string{
+		"X-Forwarded-For": {"Somebody-somewhere"},
+	}
+	// Check that success endpoints fail if X-Forwarded-For is present.
+	for _, e := range successEndpoints {
+		if err := checkURL(e, xForwardedForHeader, 403, ""); err != nil {
+			log.Printf("Wrong response for %v with X-Forwarded-For: %v", e, err)
 			success = 1
 		}
 	}
 	os.Exit(success)
 }
 
-// Checks that a URL returns the right code, and if s is non-empty,
-// checks that the body doesn't contain s.
-func checkURL(url string, expectedStatus int, s string) error {
+// Checks that a URL with the given headers returns the right code, and if s is
+// non-empty, checks that the body doesn't contain s.
+func checkURL(url string, header http.Header, expectedStatus int, s string) error {
 	client := &http.Client{}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return err
 	}
-	req.Header.Add("Metadata-Flavor", "Google")
+	req.Header = header
 	resp, err := client.Do(req)
 	if err != nil {
 		return err

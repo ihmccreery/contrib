@@ -48,7 +48,8 @@ func main() {
 type xForwardedForStripper struct{}
 
 // RoundTrip wraps the http.DefaultTransport.RoundTrip method, and strips
-// X-Forwarded-For headers.
+// X-Forwarded-For headers, since httputil.ReverseProxy.ServeHTTP adds it but
+// the GCE metadata server rejects requests with that header.
 func (x xForwardedForStripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	req.Header.Del("X-Forwarded-For")
 	return http.DefaultTransport.RoundTrip(req)
@@ -64,8 +65,6 @@ func newMetadataHandler() http.Handler {
 		log.Fatal(err)
 	}
 	proxy := httputil.NewSingleHostReverseProxy(u)
-
-	// TODO(ihmccreery) Enforce X-Forwarded-For here, since stripping it.
 
 	x := xForwardedForStripper{}
 	proxy.Transport = x
@@ -92,6 +91,12 @@ func (h *metadataHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			http.Error(rw, "This metadata endpoint is concealed.", http.StatusForbidden)
 			return
 		}
+	}
+	// Since we're stripping the X-Forwarded-For header that's added by
+	// httputil.ReverseProxy.ServeHTTP, check for the header here and
+	// refuse to serve if it's present.
+	if _, ok := req.Header["X-Forwarded-For"]; ok {
+		http.Error(rw, "Calls with X-Forwarded-For header are not allowed by the metadata proxy.", http.StatusForbidden)
 	}
 	for _, p := range knownPrefixes {
 		if strings.HasPrefix(req.URL.Path, p) {
