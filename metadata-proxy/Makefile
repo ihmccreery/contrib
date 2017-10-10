@@ -15,7 +15,7 @@
 all: build
 
 ENVVAR = GOOS=linux GOARCH=amd64 CGO_ENABLED=0
-REGISTRY = gcr.io/ihm-gke
+REGISTRY = gcr.io/google-containers
 TAG = 0.1.4
 
 deps:
