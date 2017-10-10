@@ -6,7 +6,11 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"k8s.io/contrib/metadata-proxy/metrics"
 )
 
 var (
@@ -38,7 +42,17 @@ var (
 	}
 )
 
+var (
+	proxyTypeBlocked = "proxy_type_blocked"
+	proxyTypeProxied = "proxy_type_proxied"
+)
+
 func main() {
+	// TODO(ihmccreery) Make these ports configurable.
+	go func() {
+		err := http.ListenAndServe("127.0.0.1:989", promhttp.Handler())
+		log.Fatalf("Failed to start metrics: %v", err)
+	}()
 	log.Fatal(http.ListenAndServe("127.0.0.1:988", newMetadataHandler()))
 }
 
@@ -55,11 +69,32 @@ func (x xForwardedForStripper) RoundTrip(req *http.Request) (*http.Response, err
 	return http.DefaultTransport.RoundTrip(req)
 }
 
+// responseWriter wraps the given http.ResponseWriter to record metrics.
+type responseWriter struct {
+	proxyType string
+	code      int
+	http.ResponseWriter
+}
+
+func newResponseWriter(rw http.ResponseWriter) *responseWriter {
+	return &responseWriter{
+		"",
+		0,
+		rw,
+	}
+}
+
+// WriteHeader records the header and writes the appropriate metric.
+func (m responseWriter) WriteHeader(code int) {
+	metrics.RequestCounter.WithLabelValues(m.proxyType, strconv.Itoa(code)).Inc()
+	m.ResponseWriter.WriteHeader(code)
+}
+
 type metadataHandler struct {
 	proxy *httputil.ReverseProxy
 }
 
-func newMetadataHandler() http.Handler {
+func newMetadataHandler() *metadataHandler {
 	u, err := url.Parse("http://169.254.169.254")
 	if err != nil {
 		log.Fatal(err)
@@ -74,20 +109,23 @@ func newMetadataHandler() http.Handler {
 	}
 }
 
-func (h *metadataHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	log.Println(req.URL.Path)
+func (h *metadataHandler) ServeHTTP(hrw http.ResponseWriter, req *http.Request) {
+	rw := newResponseWriter(hrw)
 	if req.URL.Query().Get("recursive") != "" {
+		rw.proxyType = proxyTypeBlocked
 		http.Error(rw, "?recursive calls are not allowed by the metadata proxy.", http.StatusForbidden)
 		return
 	}
 	for _, e := range concealedEndpoints {
 		if req.URL.Path == e {
+			rw.proxyType = proxyTypeBlocked
 			http.Error(rw, "This metadata endpoint is concealed.", http.StatusForbidden)
 			return
 		}
 	}
 	for _, p := range concealedPatterns {
 		if p.MatchString(req.URL.Path) {
+			rw.proxyType = proxyTypeBlocked
 			http.Error(rw, "This metadata endpoint is concealed.", http.StatusForbidden)
 			return
 		}
@@ -96,19 +134,24 @@ func (h *metadataHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	// httputil.ReverseProxy.ServeHTTP, check for the header here and
 	// refuse to serve if it's present.
 	if _, ok := req.Header["X-Forwarded-For"]; ok {
+		rw.proxyType = proxyTypeBlocked
 		http.Error(rw, "Calls with X-Forwarded-For header are not allowed by the metadata proxy.", http.StatusForbidden)
+		return
 	}
 	for _, p := range knownPrefixes {
 		if strings.HasPrefix(req.URL.Path, p) {
+			rw.proxyType = proxyTypeProxied
 			h.proxy.ServeHTTP(rw, req)
 			return
 		}
 	}
 	for _, e := range discoveryEndpoints {
 		if req.URL.Path == e {
+			rw.proxyType = proxyTypeProxied
 			h.proxy.ServeHTTP(rw, req)
 			return
 		}
 	}
+	rw.proxyType = proxyTypeBlocked
 	http.Error(rw, "This metadata API is not allowed by the metadata proxy.", http.StatusForbidden)
 }
